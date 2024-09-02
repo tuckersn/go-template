@@ -1,0 +1,66 @@
+version: '3'
+tasks:
+  print:
+    cmds:
+      - echo "Hello, World!"
+
+  backend:
+    cmds:
+      - go run ./cmd/server/main.go dev
+  
+  frontend:
+    dir: ./frontend/app
+    cmds:
+      - npm install
+      - npm run dev
+  
+  dev:
+    cmds:
+      - bash ./scripts/dev-tmux.sh
+
+  prodlike:
+    cmds:
+      - task build
+      - ./build/go-template
+
+  build-frontend:
+    dir: ./frontend/app
+    cmds:
+      - npm run build
+      - |
+        {{if eq OS "windows"}}
+          del /q "..\..\cmd\server\routes\html\*"
+          for /d %%i in ("..\..\cmd\server\routes\html\*") do rd /s /q "%%i"
+          move ".\dist\*" "..\..\cmd\server\routes\html"
+          copy nul "..\..\cmd\server\routes\html\.gitkeep"
+        {{else}}
+          find ../../cmd/server/routes/html -mindepth 1 ! -name '.gitkeep' -delete
+          mv "./dist/"* "../../cmd/server/routes/html/"
+          touch "../../cmd/server/routes/html/.gitkeep"
+        {{end}}
+
+  build:
+    cmds:
+      - task build-frontend
+      - go build -o ./build/go-template ./cmd/server/main.go
+
+
+
+  install-deps:
+    cmds:
+      - echo "== Installing Dependencies =="
+      - go mod tidy
+      - go mod vendor
+    silent: true
+
+
+  init:
+    cmds:
+      - echo "== Initializing =="
+      - echo ""
+      - task install-deps
+      - echo ""
+      - task build-frontend
+      - echo ""
+      - echo "== Finished Initialization =="
+    silent: true
